@@ -21,6 +21,7 @@ const client = new MongoClient(uri, {
 
 let transportRequestsCollection;
 let usersCollection;
+let noticesCollection;
 
 // Connect to MongoDB
 async function connectDB() {
@@ -29,6 +30,7 @@ async function connectDB() {
         const db = client.db("diu_smart_transport");
         transportRequestsCollection = db.collection("transport_requests");
         usersCollection = db.collection("users");
+        noticesCollection = db.collection("notices");
         console.log("✅ Connected to MongoDB");
     } catch (err) {
         console.error("❌ MongoDB connection failed:", err);
@@ -166,6 +168,74 @@ app.put("/users/admin/:id", async (req, res) => {
     } catch (err) {
         console.error("❌ Error promoting user:", err);
         res.status(500).json({ success: false, message: "Failed to promote user" });
+    }
+});
+
+/* ------------------ NOTICES ------------------ */
+
+// Create a new notice
+app.post("/notices", async (req, res) => {
+    try {
+        const { title, content, date, time, author, priority, category } = req.body;
+        if (!title || !content || !date || !time || !author || !category) {
+            return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        const noticeData = { title, content, date, time, author, priority: priority || "normal", category };
+        const result = await noticesCollection.insertOne(noticeData);
+
+        res.status(201).json({ success: true, noticeId: result.insertedId });
+    } catch (err) {
+        console.error("❌ Error adding notice:", err);
+        res.status(500).json({ success: false, message: "Failed to add notice" });
+    }
+});
+
+// Get all notices
+app.get("/notices", async (req, res) => {
+    try {
+        const notices = await noticesCollection.find().sort({ date: -1 }).toArray();
+        res.status(200).json(notices);
+    } catch (err) {
+        console.error("❌ Error fetching notices:", err);
+        res.status(500).json({ success: false, message: "Failed to fetch notices" });
+    }
+});
+
+// Update a notice
+app.put("/notices/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid notice ID" });
+
+        const updateFields = req.body;
+        const result = await noticesCollection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: updateFields }
+        );
+
+        if (result.matchedCount === 0) return res.status(404).json({ success: false, message: "Notice not found" });
+
+        res.json({ success: true, message: "Notice updated successfully" });
+    } catch (err) {
+        console.error("❌ Error updating notice:", err);
+        res.status(500).json({ success: false, message: "Failed to update notice" });
+    }
+});
+
+// Delete a notice
+app.delete("/notices/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) return res.status(400).json({ success: false, message: "Invalid notice ID" });
+
+        const result = await noticesCollection.deleteOne({ _id: new ObjectId(id) });
+        if (result.deletedCount === 0) return res.status(404).json({ success: false, message: "Notice not found" });
+
+        res.json({ success: true, message: "Notice deleted successfully" });
+    } catch (err) {
+        console.error("❌ Error deleting notice:", err);
+        res.status(500).json({ success: false, message: "Failed to delete notice" });
     }
 });
 
